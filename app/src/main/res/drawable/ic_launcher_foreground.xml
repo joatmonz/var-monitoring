@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A replay screen over a timeline with In/Out brackets: the VAR review in one glance. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M35,34h38a5,5 0,0 1,5 5v24a5,5 0,0 1,-5 5h-38a5,5 0,0 1,-5 -5v-24a5,5 0,0 1,5 -5z"
+        android:strokeColor="#00D4FF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M48,43.5L48,58.5L61,51Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M32,78L76,78"
+        android:strokeColor="#66FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M42,73L38,73L38,83L42,83M66,73L70,73L70,83L66,83"
+        android:strokeColor="#FFA726"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M54,74.5a3.5,3.5 0,1 1,0 7a3.5,3.5 0,1 1,0 -7z"
+        android:fillColor="#00D4FF" />
+</vector>
