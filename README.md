@@ -1,83 +1,121 @@
 # VAR Camera
 
-**Video review for amateur football, on an Android tablet.**
+**A video assistant referee (VAR) system for amateur football, built on an Android tablet.**
 
-VAR Camera turns a camera, an HDMI capture card and an Android tablet into a video
-assistant referee system for five-a-side and amateur pitches. It always keeps the last
-30 seconds of play. When a moment is disputed, one tap opens those seconds in a review
-player built for refereeing decisions: frame by frame, in slow motion, looped around the
-moment of contact, zoomed in.
+A camera films the match. A cheap HDMI capture card feeds the picture into an Android
+tablet or phone, and the app always keeps the last 30 seconds of play. When a moment is
+disputed, one tap opens those seconds in a review player built for refereeing decisions:
+frame by frame, in slow motion, looped around the moment of contact, zoomed in.
 
-## What you need
+It is used at real five-a-side tournament matches, where the referee walks to the
+touchline and checks the replay on the tablet.
+
+## The story
+
+I film amateur football matches on my university campus. It started when I kept hearing
+players say *"if only someone had recorded our match"*. I set up a camera and a tripod,
+started filming games, and opened an Instagram page to share match clips. The service
+spread quickly, and I have now filmed more than 100 matches.
+
+Tournament matches raised a new need: a referee who can check a decision on video, the
+way professional football does. There was no affordable tool for it, so I built one. I
+developed the app from scratch with an AI coding assistant, and tested it pitch-side
+until it held up in real matches.
+
+## What it does
+
+**Live**
+- 1080p live picture at 50 fps from the capture card.
+- A rolling 30-second buffer: press **REC** once and the last 30 seconds are always kept.
+- A clear *No Signal* screen when the camera is off or unplugged, instead of a frozen picture.
+- Warns when the picture is live but not being recorded; a red frame shows while recording.
+- HDMI audio level meter, automatic reconnection and an on-device diagnostic log.
+
+**Review**
+- **REVIEW** turns the last 30 seconds into a clip in about a second, at full original
+  quality, while recording carries on underneath.
+- Exact frame stepping, ±1 s jumps, and speeds from 0.10× to 2×.
+- **MARK** the moment of contact, set **IN** / **OUT** points and **LOOP** the range.
+- Pinch to zoom into the full-resolution frame.
+- A timeline that opens from a whole-clip overview into a per-second filmstrip.
+- Frame-accurate timecode (`0:14.49` = second 14, frame 49) and sound in sync at 1×.
+- A single row of controls, so the picture stays visible while scrubbing.
+
+## Hardware
+
+```
+Camera ──HDMI──▶ USB HDMI capture card ──USB OTG──▶ Android tablet or phone
+```
 
 | | |
 |---|---|
-| **Camera** | Any camera or camcorder with a clean HDMI output (1080p, 50 or 60 fps recommended) |
-| **Capture card** | A USB HDMI capture card that streams MJPEG over **UVC bulk transfer**, such as the common MS2109 / MS2130-based cards |
-| **Tablet or phone** | Android 7.0 or newer with USB host (OTG) support |
-| **Cable** | A USB-C OTG adapter or cable that is wired for OTG |
+| **Camera** | Anything with a clean HDMI output, 1080p at 50 or 60 fps |
+| **Capture card** | A USB card that streams MJPEG over **UVC bulk transfer** (inexpensive MS2109 / MS2130-class cards) |
+| **Device** | Android 7.0+ with USB host (OTG) support |
 
+## Engineering highlights
+
+**A USB video driver written from scratch.** Off-the-shelf Android UVC libraries showed
+a black screen with this class of capture card, because the card streams over bulk
+transfers rather than isochronous ones. The app talks to the card directly through the
+Android USB Host API instead. It parses the USB descriptors, negotiates MJPEG 1080p50
+with UVC probe/commit requests, reads the bulk endpoint and reassembles frames from the
+UVC payload headers.
+
+**Never re-encoding the video.** The test tablet's H.264 encoder topped out at about
+43 fps, which drops frames a referee might need. So the app stores the JPEG frames
+exactly as the card sends them, in one-second chunk files forming a 30-second ring
+buffer on disk. Saving a clip becomes a file copy: no quality loss, no CPU cost, about a
+second.
+
+**Frame-exact playback on a budget tablet.** Every frame is an independent JPEG, so any
+frame can be shown instantly. A 1080p JPEG takes about 20 ms to decode on the test
+tablet, which is the whole frame budget at 50 fps. Two decoder threads therefore work
+ahead of the playhead while a display thread draws to a `SurfaceView`. Zoom crops the
+full-resolution frame instead of scaling the view.
+
+**Telling "camera off" from "nothing moving".** A powered-off camera can leave the card
+sending a frozen or blank picture. Pixel-level freeze detection misfired on a static
+scene, so the driver fingerprints the compressed JPEG bytes instead. A live camera's
+encoder never produces two byte-identical frames, even when nothing in front of it moves.
+
+**Audio in sync.** The card delivers the camera's sound on a separate USB audio
+interface. The app records it with timestamps on the same clock as the video frames,
+and plays it back following the picture's clock with drift correction. Building this
+exposed a timing bug: rounding every frame gap to whole milliseconds had been running
+"1×" playback 2.5% fast.
+
+**Built for the pitch.** After unexplained failures at matches, I added an on-device log
+of USB, signal, battery and temperature events, shareable from the app, so a failure
+at the pitch can be diagnosed from evidence afterwards instead of guesswork.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Card[HDMI capture card] -- bulk UVC / MJPEG --> Driver[UvcCamera]
+    Card -- USB audio --> Audio[AudioRingBuffer]
+    Driver --> Preview[UvcPreviewView<br/>live preview]
+    Driver --> Ring[FrameRingBuffer<br/>30 s on disk]
+    Ring -- REVIEW --> Clip[(Clip folder<br/>MJPEG chunks + PCM)]
+    Audio -- REVIEW --> Clip
+    Clip --> Player[ReviewPlayerManager<br/>decoders + display thread]
+    Clip --> Sound[ClipAudioPlayer]
+    Player --> View[ClipView<br/>SurfaceView]
 ```
-Camera ──HDMI──▶ USB capture card ──USB OTG──▶ Android tablet
-```
 
-> Cards that stream video isochronously cannot be read through Android's USB API.
-> The app detects this and says so.
-
-## Features
-
-### Live
-- 1080p live preview at up to 50 fps.
-- **Rolling 30-second buffer:** press **REC** once and the app always keeps the last
-  30 seconds of play.
-- Shows a clear *No Signal* screen when the camera is switched off or unplugged,
-  instead of a frozen picture.
-- Warns you when the picture is live but nothing is being recorded. While recording, a
-  red frame surrounds the screen.
-- Audio level meter for the camera's HDMI sound.
-- Reconnects to the capture card by itself.
-
-### Review
-- **REVIEW** saves the last 30 seconds as a clip in about a second, at the camera's
-  original quality. Recording continues in the background.
-- Full-resolution playback with exact frame stepping and ±1-second jumps.
-- Playback speed from 0.10× to 2×.
-- **MARK** the moment of contact, set **IN** and **OUT** points, and **LOOP** the range.
-- Pinch to zoom into the full-resolution frame.
-- Timeline with a whole-clip overview and a filmstrip for precise scrubbing.
-- Frame-accurate timecode, for example `0:14.49 / 0:30.00`.
-- Sound in sync with the picture at normal speed.
-- Clip gallery with delete.
-- Tap the picture to hide the controls. With the controls shown, the video resizes so
-  they never cover it.
-
-### Diagnostics
-- An on-device log of connection, signal, battery and temperature events. Share it from
-  the **LOG** button to troubleshoot problems at the pitch.
-
-## How it works
-
-| Component | Role |
+| Package | Contents |
 |---|---|
-| `uvc/UvcCamera` | A lightweight UVC driver built on the Android USB host API. It negotiates the MJPEG stream, reads it over bulk transfer and detects signal loss. |
-| `uvc/UvcPreviewView` | Live preview rendering. |
-| `recording/FrameRingBuffer` | Stores the card's MJPEG frames exactly as received in a 30-second rolling buffer. Clips are never re-encoded, so saving is instant and lossless. |
-| `recording/AudioRingBuffer` | Captures the HDMI audio from the card's USB audio interface and aligns it to the video frames. |
-| `review/ReviewPlayerManager` | Multi-threaded, frame-accurate player for saved clips. |
-| `review/ClipAudioPlayer` | Plays a clip's sound in sync with the picture. |
-| `diag/DiagnosticLog` | Daily diagnostic log files. |
+| `uvc/` | USB video driver and live preview |
+| `recording/` | Video and audio ring buffers, clip storage |
+| `review/` | Clip readers, frame-accurate player, audio playback, render surface |
+| `diag/` | Diagnostic log |
+| `MainActivity.kt`, `UVCCameraFragment.kt` | Jetpack Compose UI for the review and live screens |
 
-Every frame is stored as an independent JPEG, so seeking and frame stepping are exact.
-A 30-second 1080p50 clip takes roughly 150–250 MB. The app keeps up to 20 clips and
-always leaves 1 GB of storage free.
+A 30-second 1080p50 clip takes about 400 MB of match footage. Up to 20 clips are kept,
+and 1 GB of storage is always left free.
 
-### Clip format
-
-Clips are saved in the app's storage as `clips/clip_yyyyMMdd_HHmmss/`:
-- `chunk_NNNNNN.mjpg`: one second of video, stored as repeated
-  `[timestamp ns: Long][length: Int][JPEG]` records.
-- `audio.pcm`: a short header (`"VARA"`, sample rate, channels, start time), followed by
-  48 kHz 16-bit stereo PCM.
+**Tech:** Kotlin · Jetpack Compose · Android USB Host API (UVC) · AudioRecord / AudioTrack · SurfaceView rendering · multithreaded JPEG decoding
 
 ## Building
 
@@ -91,4 +129,4 @@ The APK is written to `app/build/outputs/apk/release/`.
 
 ## License
 
-All rights reserved.
+All rights reserved. The code is published for viewing. Please ask before reusing it.
