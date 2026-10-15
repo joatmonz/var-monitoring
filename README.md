@@ -3,7 +3,7 @@
 **A video assistant referee (VAR) system for amateur football.**
 
 <p align="center">
-  <img src="docs/images/review-demo.gif" alt="Reviewing an incident: a loop around the marked moment, played at half speed" width="800">
+  <img src="docs/images/review-demo.webp" alt="Reviewing an incident: mark the moment, loop ±0.5 s around it at half speed, hide the controls and zoom in" width="900">
 </p>
 
 A camera films the match. A cheap HDMI capture card feeds the picture into an Android
