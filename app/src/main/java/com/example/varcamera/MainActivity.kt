@@ -790,10 +790,15 @@ private fun ToolsMenu(
                 if (hasAudio && !soundOn) ToolBadge(Icons.AutoMirrored.Rounded.VolumeOff, Color.White.copy(alpha = 0.7f))
             }
         )
+        // Half see-through, so the picture stays visible behind the menu. The menu's
+        // own surface takes the theme's surface colour, so that is made transparent.
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(surface = Color.Transparent, surfaceTint = Color.Transparent)
+        ) {
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            modifier = Modifier.background(VarColors.Panel)
+            modifier = Modifier.background(VarColors.Panel.copy(alpha = 0.5f))
         ) {
             // Two columns side by side: wide and short, so it fits above the controls
             // even on a phone held sideways.
@@ -881,6 +886,7 @@ private fun ToolsMenu(
                     }
                 }
             }
+        }
         }
     }
 }
