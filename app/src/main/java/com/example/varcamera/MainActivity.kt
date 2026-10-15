@@ -795,84 +795,90 @@ private fun ToolsMenu(
             onDismissRequest = { open = false },
             modifier = Modifier.background(VarColors.Panel)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(460.dp)) {
-                ToolsSectionTitle("MARK & LOOP")
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // With a range set, the same button clears it back to the whole clip.
-                    VARButton(
-                        text = if (range.isWholeClip) "MARK" else "CLEAR",
-                        icon = if (range.isWholeClip) Icons.Rounded.PushPin else Icons.Rounded.Close,
-                        tone = if (range.isWholeClip) ButtonTone.Neutral else ButtonTone.Range,
-                        onClick = { if (range.isWholeClip) onMark() else onClearRange() },
-                        minWidth = 140.dp
-                    )
-                    VARButton(
-                        text = if (isLooping) "LOOP ON" else "LOOP",
-                        icon = Icons.Rounded.Repeat,
-                        tone = if (isLooping) ButtonTone.Range else ButtonTone.Neutral,
-                        onClick = onToggleLoop,
-                        minWidth = 140.dp
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                Text("In / Out around the mark", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MARK_SPAN_OPTIONS_MS.forEach { option ->
-                        ChoiceChip(
-                            text = formatSpan(option),
-                            selected = option == markSpanMs,
-                            selectedColor = VarColors.Range,
-                            onClick = { onMarkSpan(option) },
-                            modifier = Modifier.weight(1f)
+            // Two columns side by side: wide and short, so it fits above the controls
+            // even on a phone held sideways.
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(28.dp)
+            ) {
+                Column(modifier = Modifier.width(430.dp)) {
+                    ToolsSectionTitle("MARK & LOOP")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // With a range set, the same button clears it back to the whole clip.
+                        VARButton(
+                            text = if (range.isWholeClip) "MARK" else "CLEAR",
+                            icon = if (range.isWholeClip) Icons.Rounded.PushPin else Icons.Rounded.Close,
+                            tone = if (range.isWholeClip) ButtonTone.Neutral else ButtonTone.Range,
+                            onClick = { if (range.isWholeClip) onMark() else onClearRange() },
+                            minWidth = 140.dp
                         )
+                        VARButton(
+                            text = if (isLooping) "LOOP ON" else "LOOP",
+                            icon = Icons.Rounded.Repeat,
+                            tone = if (isLooping) ButtonTone.Range else ButtonTone.Neutral,
+                            onClick = onToggleLoop,
+                            minWidth = 140.dp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("In / Out around the mark", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        MARK_SPAN_OPTIONS_MS.forEach { option ->
+                            ChoiceChip(
+                                text = formatSpan(option),
+                                selected = option == markSpanMs,
+                                selectedColor = VarColors.Range,
+                                onClick = { onMarkSpan(option) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                ToolsSectionTitle("SPEED  ${formatSpeed(speed)}")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SPEED_PRESETS.forEach { preset ->
-                        ChoiceChip(
-                            text = if (preset >= 1f) "${preset.toString().removeSuffix(".0")}x" else formatSpeed(preset),
-                            selected = kotlin.math.abs(preset - speed) < 0.005f,
-                            selectedColor = VarColors.Accent,
-                            onClick = { onSpeedChange(preset) },
-                            modifier = Modifier.weight(1f)
-                        )
+                Column(modifier = Modifier.width(430.dp)) {
+                    ToolsSectionTitle("SPEED  ${formatSpeed(speed)}")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SPEED_PRESETS.forEach { preset ->
+                            ChoiceChip(
+                                text = if (preset >= 1f) "${preset.toString().removeSuffix(".0")}x" else formatSpeed(preset),
+                                selected = kotlin.math.abs(preset - speed) < 0.005f,
+                                selectedColor = VarColors.Accent,
+                                onClick = { onSpeedChange(preset) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
-                }
-                Slider(
-                    value = speed,
-                    onValueChange = onSpeedChange,
-                    valueRange = 0.1f..2.0f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = VarColors.Accent,
-                        activeTrackColor = VarColors.Accent,
-                        inactiveTrackColor = Color(0xFF444466)
+                    Slider(
+                        value = speed,
+                        onValueChange = onSpeedChange,
+                        valueRange = 0.1f..2.0f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = VarColors.Accent,
+                            activeTrackColor = VarColors.Accent,
+                            inactiveTrackColor = Color(0xFF444466)
+                        )
                     )
-                )
-
-                ToolsSectionTitle("SOUND")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    VARButton(
-                        text = when {
-                            !hasAudio -> "NO AUDIO"
-                            soundOn -> "SOUND ON"
-                            else -> "MUTED"
-                        },
-                        icon = if (hasAudio && soundOn) {
-                            Icons.AutoMirrored.Rounded.VolumeUp
-                        } else {
-                            Icons.AutoMirrored.Rounded.VolumeOff
-                        },
-                        tone = if (hasAudio && soundOn) ButtonTone.Active else ButtonTone.Neutral,
-                        onClick = onToggleSound,
-                        enabled = hasAudio,
-                        minWidth = 140.dp
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Plays at 1x only", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        VARButton(
+                            text = when {
+                                !hasAudio -> "NO AUDIO"
+                                soundOn -> "SOUND ON"
+                                else -> "MUTED"
+                            },
+                            icon = if (hasAudio && soundOn) {
+                                Icons.AutoMirrored.Rounded.VolumeUp
+                            } else {
+                                Icons.AutoMirrored.Rounded.VolumeOff
+                            },
+                            tone = if (hasAudio && soundOn) ButtonTone.Active else ButtonTone.Neutral,
+                            onClick = onToggleSound,
+                            enabled = hasAudio,
+                            minWidth = 140.dp
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Sound plays at 1x only", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                    }
                 }
             }
         }
