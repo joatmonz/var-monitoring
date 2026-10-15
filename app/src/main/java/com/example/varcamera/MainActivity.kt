@@ -55,8 +55,8 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.SlowMotionVideo
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.ArrowDropUp
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.ZoomIn
@@ -444,116 +444,87 @@ fun ReviewScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Transport, bracketed by In and Out: find a frame, then fix the loop to it.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    VARButton(
-                        text = "[  IN",
-                        tone = if (range.inSet) ButtonTone.Range else ButtonTone.Neutral,
-                        onClick = { reviewPlayerManager.setIn() },
-                        minWidth = 90.dp
-                    )
-                    VARButton(
-                        text = "-1s",
-                        icon = Icons.Rounded.FastRewind,
-                        onClick = { reviewPlayerManager.seekBackSeconds(1) },
-                        minWidth = 96.dp
-                    )
-                    VARButton(
-                        text = "Frame",
-                        icon = Icons.Rounded.ChevronLeft,
-                        onClick = { reviewPlayerManager.stepBackward() },
-                        minWidth = 104.dp
-                    )
-                    VARButton(
-                        text = if (isPlaying) "PAUSE" else "PLAY",
-                        icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        tone = ButtonTone.Primary,
-                        onClick = { reviewPlayerManager.togglePlayPause() },
-                        minWidth = 140.dp
-                    )
-                    VARButton(
-                        text = "Frame",
-                        trailingIcon = Icons.Rounded.ChevronRight,
-                        onClick = { reviewPlayerManager.stepForward() },
-                        minWidth = 104.dp
-                    )
-                    VARButton(
-                        text = "+1s",
-                        trailingIcon = Icons.Rounded.FastForward,
-                        onClick = { reviewPlayerManager.seekForwardSeconds(1) },
-                        minWidth = 96.dp
-                    )
-                    VARButton(
-                        text = "OUT  ]",
-                        tone = if (range.outSet) ButtonTone.Range else ButtonTone.Neutral,
-                        onClick = { reviewPlayerManager.setOut() },
-                        minWidth = 90.dp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
+                // One row, so the panel takes as little of the picture as possible: the
+                // set-up tools fold into TOOLS, transport sits in the middle bracketed by
+                // In and Out, and leaving the clip stays in the right-hand corner.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val hasAudio = (clipInfo?.audioRate ?: 0) > 0
+                    ToolsMenu(
+                        range = range,
+                        isLooping = isLooping,
+                        markSpanMs = markSpanMs,
+                        speed = currentSpeed,
+                        hasAudio = hasAudio,
+                        soundOn = soundOn,
+                        onMark = { reviewPlayerManager.setMark() },
+                        onClearRange = { reviewPlayerManager.clearRange() },
+                        onMarkSpan = { markSpanMs = it },
+                        onToggleLoop = { isLooping = reviewPlayerManager.toggleLoop() },
+                        onSpeedChange = {
+                            currentSpeed = it
+                            reviewPlayerManager.setSpeed(it)
+                        },
+                        onToggleSound = { soundOn = !soundOn }
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // With a range set, the same button clears it back to the whole clip.
                         VARButton(
-                            text = if (range.isWholeClip) "MARK" else "CLEAR",
-                            icon = if (range.isWholeClip) Icons.Rounded.PushPin else Icons.Rounded.Close,
-                            tone = if (range.isWholeClip) ButtonTone.Neutral else ButtonTone.Range,
-                            onClick = {
-                                if (range.isWholeClip) reviewPlayerManager.setMark() else reviewPlayerManager.clearRange()
-                            },
-                            minWidth = 116.dp
+                            text = "[  IN",
+                            tone = if (range.inSet) ButtonTone.Range else ButtonTone.Neutral,
+                            onClick = { reviewPlayerManager.setIn() },
+                            minWidth = 80.dp
                         )
-                        MarkSpanPicker(spanMs = markSpanMs, onSelect = { markSpanMs = it })
                         VARButton(
-                            text = if (isLooping) "LOOP ON" else "LOOP",
-                            icon = Icons.Rounded.Repeat,
-                            tone = if (isLooping) ButtonTone.Range else ButtonTone.Neutral,
-                            onClick = { isLooping = reviewPlayerManager.toggleLoop() },
-                            minWidth = 132.dp
+                            text = "-1s",
+                            icon = Icons.Rounded.FastRewind,
+                            onClick = { reviewPlayerManager.seekBackSeconds(1) },
+                            minWidth = 88.dp
                         )
-                        SpeedPicker(
-                            speed = currentSpeed,
-                            onSpeedChange = {
-                                currentSpeed = it
-                                reviewPlayerManager.setSpeed(it)
-                            }
-                        )
-                        val hasAudio = (clipInfo?.audioRate ?: 0) > 0
                         VARButton(
-                            text = when {
-                                !hasAudio -> "NO AUDIO"
-                                soundOn -> "SOUND"
-                                else -> "MUTED"
-                            },
-                            icon = if (hasAudio && soundOn) {
-                                Icons.AutoMirrored.Rounded.VolumeUp
-                            } else {
-                                Icons.AutoMirrored.Rounded.VolumeOff
-                            },
-                            tone = if (hasAudio && soundOn) ButtonTone.Active else ButtonTone.Neutral,
-                            onClick = { soundOn = !soundOn },
-                            enabled = hasAudio,
-                            minWidth = 132.dp
+                            text = "Frame",
+                            icon = Icons.Rounded.ChevronLeft,
+                            onClick = { reviewPlayerManager.stepBackward() },
+                            minWidth = 100.dp
+                        )
+                        VARButton(
+                            text = if (isPlaying) "PAUSE" else "PLAY",
+                            icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            tone = ButtonTone.Primary,
+                            onClick = { reviewPlayerManager.togglePlayPause() },
+                            minWidth = 128.dp
+                        )
+                        VARButton(
+                            text = "Frame",
+                            trailingIcon = Icons.Rounded.ChevronRight,
+                            onClick = { reviewPlayerManager.stepForward() },
+                            minWidth = 100.dp
+                        )
+                        VARButton(
+                            text = "+1s",
+                            trailingIcon = Icons.Rounded.FastForward,
+                            onClick = { reviewPlayerManager.seekForwardSeconds(1) },
+                            minWidth = 88.dp
+                        )
+                        VARButton(
+                            text = "OUT  ]",
+                            tone = if (range.outSet) ButtonTone.Range else ButtonTone.Neutral,
+                            onClick = { reviewPlayerManager.setOut() },
+                            minWidth = 80.dp
                         )
                     }
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    // Leaving this clip — kept apart from the playback tools.
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         VARButton(
@@ -561,14 +532,14 @@ fun ReviewScreen(
                             icon = if (showGallery) Icons.Rounded.Close else Icons.Rounded.VideoLibrary,
                             tone = if (showGallery) ButtonTone.Active else ButtonTone.Neutral,
                             onClick = { showGallery = !showGallery },
-                            minWidth = 116.dp
+                            minWidth = 100.dp
                         )
                         VARButton(
                             text = "LIVE",
                             icon = Icons.Rounded.Videocam,
                             tone = ButtonTone.Live,
                             onClick = onReturnToLive,
-                            minWidth = 110.dp
+                            minWidth = 96.dp
                         )
                     }
                 }
@@ -767,116 +738,186 @@ private val MARK_SPAN_OPTIONS_MS = listOf(500L, 1000L, 1500L, 2000L, 2500L, 3000
 
 private fun formatSpan(ms: Long) = String.format(java.util.Locale.US, "±%.1fs", ms / 1000.0)
 
-/** How far In and Out sit either side of the mark. */
-@Composable
-private fun MarkSpanPicker(spanMs: Long, onSelect: (Long) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        VARButton(
-            text = formatSpan(spanMs),
-            icon = Icons.Rounded.Timer,
-            trailingIcon = Icons.Rounded.ArrowDropDown,
-            onClick = { open = true },
-            minWidth = 96.dp
-        )
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            modifier = Modifier.background(VarColors.Panel)
-        ) {
-            MARK_SPAN_OPTIONS_MS.forEach { option ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = formatSpan(option),
-                            color = if (option == spanMs) LOOP_RANGE_COLOR else Color.White,
-                            fontWeight = if (option == spanMs) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 18.sp
-                        )
-                    },
-                    onClick = {
-                        onSelect(option)
-                        open = false
-                    }
-                )
-            }
-        }
-    }
-}
-
 private val SPEED_PRESETS = listOf(0.1f, 0.25f, 0.5f, 1f, 1.5f, 2f)
 
 private fun formatSpeed(speed: Float) = String.format(java.util.Locale.US, "%.2fx", speed)
 
-/** Speed button opening one-tap presets for the usual rates, plus a slider for anything between. */
+private fun isNormalSpeed(speed: Float) = kotlin.math.abs(speed - 1f) < 0.005f
+
+/**
+ * The set-up tools — mark, loop range, loop, speed and sound — folded behind one
+ * button so the controls fit in a single row. They are set once per incident rather
+ * than tapped constantly, so a menu costs little. While the menu is closed the
+ * button shows whatever is switched on, so slow motion or a muted clip never goes
+ * unnoticed.
+ */
 @Composable
-private fun SpeedPicker(speed: Float, onSpeedChange: (Float) -> Unit) {
+private fun ToolsMenu(
+    range: ReviewPlayerManager.LoopRange,
+    isLooping: Boolean,
+    markSpanMs: Long,
+    speed: Float,
+    hasAudio: Boolean,
+    soundOn: Boolean,
+    onMark: () -> Unit,
+    onClearRange: () -> Unit,
+    onMarkSpan: (Long) -> Unit,
+    onToggleLoop: () -> Unit,
+    onSpeedChange: (Float) -> Unit,
+    onToggleSound: () -> Unit
+) {
     var open by remember { mutableStateOf(false) }
     Box {
-        // Highlighted while not at normal speed, so slow motion is never left on unnoticed.
         VARButton(
-            text = formatSpeed(speed),
-            icon = Icons.Rounded.Speed,
-            trailingIcon = Icons.Rounded.ArrowDropDown,
-            tone = if (kotlin.math.abs(speed - 1f) < 0.005f) ButtonTone.Neutral else ButtonTone.Active,
-            onClick = { open = true },
-            minWidth = 130.dp
+            text = "TOOLS",
+            icon = Icons.Rounded.Tune,
+            trailingIcon = if (open) Icons.Rounded.ArrowDropDown else Icons.Rounded.ArrowDropUp,
+            tone = if (open) ButtonTone.Active else ButtonTone.Neutral,
+            onClick = { open = !open },
+            minWidth = 120.dp,
+            badges = {
+                if (range.markMs >= 0) ToolBadge(Icons.Rounded.PushPin, VarColors.Range)
+                if (isLooping) ToolBadge(Icons.Rounded.Repeat, VarColors.Range)
+                if (!isNormalSpeed(speed)) {
+                    Text(
+                        text = formatSpeed(speed),
+                        color = VarColors.Accent,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+                if (hasAudio && !soundOn) ToolBadge(Icons.AutoMirrored.Rounded.VolumeOff, Color.White.copy(alpha = 0.7f))
+            }
         )
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
             modifier = Modifier.background(VarColors.Panel)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(420.dp)) {
-                Text(
-                    text = "PLAYBACK SPEED  ${formatSpeed(speed)}",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(460.dp)) {
+                ToolsSectionTitle("MARK & LOOP")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // With a range set, the same button clears it back to the whole clip.
+                    VARButton(
+                        text = if (range.isWholeClip) "MARK" else "CLEAR",
+                        icon = if (range.isWholeClip) Icons.Rounded.PushPin else Icons.Rounded.Close,
+                        tone = if (range.isWholeClip) ButtonTone.Neutral else ButtonTone.Range,
+                        onClick = { if (range.isWholeClip) onMark() else onClearRange() },
+                        minWidth = 140.dp
+                    )
+                    VARButton(
+                        text = if (isLooping) "LOOP ON" else "LOOP",
+                        icon = Icons.Rounded.Repeat,
+                        tone = if (isLooping) ButtonTone.Range else ButtonTone.Neutral,
+                        onClick = onToggleLoop,
+                        minWidth = 140.dp
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("In / Out around the mark", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SPEED_PRESETS.forEach { preset ->
-                        val selected = kotlin.math.abs(preset - speed) < 0.005f
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selected) VarColors.Accent else VarColors.Surface)
-                                .clickable {
-                                    onSpeedChange(preset)
-                                    open = false
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (preset >= 1f) "${preset.toString().removeSuffix(".0")}x" else formatSpeed(preset),
-                                color = if (selected) VarColors.OnAccent else Color.White,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 15.sp
-                            )
-                        }
+                    MARK_SPAN_OPTIONS_MS.forEach { option ->
+                        ChoiceChip(
+                            text = formatSpan(option),
+                            selected = option == markSpanMs,
+                            selectedColor = VarColors.Range,
+                            onClick = { onMarkSpan(option) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+
+                Spacer(modifier = Modifier.height(16.dp))
+                ToolsSectionTitle("SPEED  ${formatSpeed(speed)}")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SPEED_PRESETS.forEach { preset ->
+                        ChoiceChip(
+                            text = if (preset >= 1f) "${preset.toString().removeSuffix(".0")}x" else formatSpeed(preset),
+                            selected = kotlin.math.abs(preset - speed) < 0.005f,
+                            selectedColor = VarColors.Accent,
+                            onClick = { onSpeedChange(preset) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
                 Slider(
                     value = speed,
                     onValueChange = onSpeedChange,
                     valueRange = 0.1f..2.0f,
                     colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF00D4FF),
-                        activeTrackColor = Color(0xFF00D4FF),
+                        thumbColor = VarColors.Accent,
+                        activeTrackColor = VarColors.Accent,
                         inactiveTrackColor = Color(0xFF444466)
                     )
                 )
-                Text(
-                    text = "Sound plays at 1x only",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 13.sp
-                )
+
+                ToolsSectionTitle("SOUND")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    VARButton(
+                        text = when {
+                            !hasAudio -> "NO AUDIO"
+                            soundOn -> "SOUND ON"
+                            else -> "MUTED"
+                        },
+                        icon = if (hasAudio && soundOn) {
+                            Icons.AutoMirrored.Rounded.VolumeUp
+                        } else {
+                            Icons.AutoMirrored.Rounded.VolumeOff
+                        },
+                        tone = if (hasAudio && soundOn) ButtonTone.Active else ButtonTone.Neutral,
+                        onClick = onToggleSound,
+                        enabled = hasAudio,
+                        minWidth = 140.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Plays at 1x only", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ToolsSectionTitle(text: String) {
+    Text(text = text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    Spacer(modifier = Modifier.height(8.dp))
+}
+
+@Composable
+private fun ToolBadge(icon: ImageVector, tint: Color) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.padding(start = 6.dp).size(18.dp)
+    )
+}
+
+/** One option in a row of mutually exclusive choices. */
+@Composable
+private fun ChoiceChip(
+    text: String,
+    selected: Boolean,
+    selectedColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) selectedColor else VarColors.Surface)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (selected) VarColors.OnAccent else Color.White,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 14.sp
+        )
     }
 }
 
@@ -1184,7 +1225,8 @@ fun VARButton(
     tone: ButtonTone = ButtonTone.Neutral,
     enabled: Boolean = true,
     minWidth: androidx.compose.ui.unit.Dp = 100.dp,
-    trailingIcon: ImageVector? = null
+    trailingIcon: ImageVector? = null,
+    badges: (@Composable () -> Unit)? = null
 ) {
     val (container, content, border) = when (tone) {
         ButtonTone.Neutral -> Triple(VarColors.Surface, Color.White, Color.White.copy(alpha = 0.12f))
@@ -1216,6 +1258,7 @@ fun VARButton(
                 fontSize = 16.sp,
                 textAlign = TextAlign.Center
             )
+            badges?.invoke()
             if (trailingIcon != null) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Icon(imageVector = trailingIcon, contentDescription = null, tint = content, modifier = Modifier.size(22.dp))
