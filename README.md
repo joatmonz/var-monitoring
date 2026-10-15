@@ -1,6 +1,6 @@
 # VAR Camera
 
-**A video assistant referee (VAR) system for amateur football, built on an Android tablet.**
+**A video assistant referee (VAR) system for amateur football.**
 
 <p align="center">
   <img src="docs/images/review-demo.gif" alt="Reviewing an incident: a loop around the marked moment, played at half speed" width="800">
