@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && if [ -n \"$(git status --porcelain)\" ]; then git add -A && git commit -q -m \"Auto-commit $(date '+%Y-%m-%d %H:%M')\" && git push -q origin main; fi",
+            "timeout": 120,
+            "statusMessage": "Pushing changes to GitHub..."
+          }
+        ]
+      }
+    ]
+  }
+}
