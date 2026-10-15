@@ -2,6 +2,10 @@
 
 **A video assistant referee (VAR) system for amateur football, built on an Android tablet.**
 
+<p align="center">
+  <img src="docs/images/review-demo.gif" alt="Reviewing an incident: a loop around the marked moment, played at half speed" width="800">
+</p>
+
 A camera films the match. A cheap HDMI capture card feeds the picture into an Android
 tablet or phone, and the app always keeps the last 30 seconds of play. When a moment is
 disputed, one tap opens those seconds in a review player built for refereeing decisions:
@@ -12,15 +16,41 @@ touchline and checks the replay on the tablet.
 
 ## The story
 
-I film amateur football matches on my university campus. It started when I kept hearing
-players say *"if only someone had recorded our match"*. I set up a camera and a tripod,
-started filming games, and opened an Instagram page to share match clips. The service
-spread quickly, and I have now filmed more than 100 matches.
+**It started with a sentence I kept hearing.** We play football regularly on the
+Hacettepe University campus, and after almost every match someone would say *"if only
+someone had recorded our match"*. I took that as demand. I set up my camera and tripod
+and started filming matches.
 
-Tournament matches raised a new need: a referee who can check a decision on video, the
-way professional football does. There was no affordable tool for it, so I built one. I
-developed the app from scratch with an AI coding assistant, and tested it pitch-side
-until it held up in real matches.
+**Then I made it reachable.** To get to more of the people who play, and who wanted
+their games filmed, I opened an Instagram page and started posting match clips. The
+page built engagement, and the service spread by word of mouth. I have now filmed more
+than 100 matches.
+
+**I never treated it as "set up the camera, film the match".** Every match was a
+chance to make the service better, and the biggest step was bringing VAR, the video
+review system used in professional football, to amateur matches. For serious matches
+such as tournaments, the referee can now check a disputed decision on video before
+making the call.
+
+**There was no app for it, so I built one.** I could not find an existing app that
+did what pitch-side review needs, so I developed this one from scratch, working with an
+AI coding assistant throughout. That meant writing a USB video driver, a recording
+buffer and a frame-accurate replay player, and testing it at real matches until it held
+up.
+
+For me, this project is what entrepreneurship looks like in practice: I noticed a demand
+nobody was serving, built the supply for it, and kept turning a simple service into a
+better product.
+
+## Screenshots
+
+| Review screen | Marked moment with a loop range at 0.5× |
+|---|---|
+| ![Review screen](docs/images/review.jpg) | ![Loop range around a marked moment](docs/images/loop-range.jpg) |
+
+| TOOLS menu: mark, loop range, speed and sound |
+|---|
+| ![TOOLS menu](docs/images/tools.jpg) |
 
 ## What it does
 
