@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "VARCamera"
 include(":app")
+include(":usbtest")
