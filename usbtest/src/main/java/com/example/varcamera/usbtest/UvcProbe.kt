@@ -310,35 +310,78 @@ class UvcProbe(
         seconds: Int,
         assembler: PayloadAssembler
     ): String? {
-        // One bulk transfer carries one UVC payload, so the buffer must hold a whole one.
-        val size = if (Build.VERSION.SDK_INT >= 28) maxPayload.coerceIn(512, 4 * 1024 * 1024)
-        else maxPayload.coerceIn(512, 16384)
-        if (Build.VERSION.SDK_INT < 28 && maxPayload > 16384) {
-            log.log("WARNING: payloads above 16 KB arrive split on Android 8 and older")
-        }
-        log.log("Bulk endpoint 0x%02x, max packet %d, %d bytes per read".format(endpoint.address, endpoint.maxPacketSize, size))
-
-        val chunk = ByteArray(size)
-        val buffer = ByteBuffer.wrap(chunk)
-        var reads = 0L
-        var failures = 0L
-        var firstDataAt = 0L
+        // A UVC payload can be far bigger than one read can be (the Sony A7 IV sends a whole
+        // 1.3 MB frame as one payload, and the phone refuses reads that big). So read in
+        // chunks and rebuild each payload, as Linux does: a payload ends with a short read
+        // or when it reaches the negotiated maximum size.
+        log.log("Bulk endpoint 0x%02x, max packet %d, payloads up to %d bytes".format(
+            endpoint.address, endpoint.maxPacketSize, maxPayload
+        ))
+        runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO) }
         val start = System.nanoTime()
         val deadline = start + seconds * 1_000_000_000L
-        runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO) }
-        while (!stopped && System.nanoTime() < deadline) {
-            val got = conn.bulkTransfer(endpoint, chunk, size, 500)
-            if (got < 0) {
-                failures++
-                continue
+        var anyData = false
+
+        for (chunkSize in listOf(16384, 65536, 4096, 512)) {
+            if (stopped || System.nanoTime() >= deadline) break
+            log.log("Reading in $chunkSize-byte chunks")
+            val chunk = ByteArray(chunkSize)
+            val payload = ByteArray(maxOf(maxPayload, chunkSize) + chunkSize)
+            val payloadBuffer = ByteBuffer.wrap(payload)
+            var payloadLength = 0
+            var reads = 0L
+            var failures = 0L
+            var quickFailures = 0L
+            var payloads = 0L
+            var oversized = 0L
+            var firstDataAt = 0L
+            val sizes = mutableListOf<Int>()
+            val sizeStart = System.nanoTime()
+
+            fun endPayload() {
+                if (payloadLength == 0) return
+                payloads++
+                if (sizes.size < 10) sizes += payloadLength
+                assembler.feed(payloadBuffer, 0, payloadLength)
+                payloadLength = 0
             }
-            reads++
-            if (got > 0 && firstDataAt == 0L) firstDataAt = System.nanoTime()
-            assembler.feed(buffer, 0, got)
+
+            while (!stopped && System.nanoTime() < deadline) {
+                // No data at all after 1.5 s: this chunk size does not work, try the next.
+                if (reads == 0L && System.nanoTime() - sizeStart > 1_500_000_000L) break
+                val t = System.nanoTime()
+                val got = conn.bulkTransfer(endpoint, chunk, chunkSize, 500)
+                if (got < 0) {
+                    failures++
+                    if (System.nanoTime() - t < 50_000_000L) quickFailures++
+                    continue
+                }
+                reads++
+                if (got == 0) {
+                    endPayload() // zero-length packet: the payload ended on a packet boundary
+                    continue
+                }
+                if (firstDataAt == 0L) firstDataAt = System.nanoTime()
+                if (payloadLength + got > payload.size) {
+                    oversized++
+                    endPayload()
+                }
+                System.arraycopy(chunk, 0, payload, payloadLength, got)
+                payloadLength += got
+                if (got < chunkSize || payloadLength >= maxPayload) endPayload()
+            }
+            endPayload()
+
+            log.log("Bulk ($chunkSize-byte chunks): $reads reads, $failures failed ($quickFailures failed at once), " +
+                "$payloads payloads, $oversized oversized, first data after " +
+                (if (firstDataAt == 0L) "never" else "${(firstDataAt - sizeStart) / 1_000_000} ms") +
+                ", first payload sizes: ${sizes.joinToString("/").ifEmpty { "none" }}")
+            if (reads > 0) {
+                anyData = true
+                break
+            }
         }
-        log.log("Bulk: $reads reads, $failures timeouts or errors, first data after " +
-            if (firstDataAt == 0L) "never" else "${(firstDataAt - start) / 1_000_000} ms")
-        return if (reads == 0L) "no data on the bulk endpoint" else null
+        return if (anyData) null else "no data on the bulk endpoint"
     }
 
     private fun readIsochronous(
