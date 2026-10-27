@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Android refuses USB access to any device with a video interface without it. -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:icon="@android:drawable/ic_menu_camera"

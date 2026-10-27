@@ -1,5 +1,6 @@
 package com.example.varcamera.usbtest
 
+import android.Manifest
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -7,6 +8,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
@@ -41,6 +43,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val ACTION_USB_PERMISSION = "com.example.varcamera.usbtest.USB_PERMISSION"
+        private const val CAMERA_REQUEST = 1
         private const val CHECK_INTERVAL_MS = 1000L
         private const val MAX_SCREEN_LINES = 400
         private const val CLASS_VIDEO = 14
@@ -64,6 +67,7 @@ class MainActivity : Activity() {
     private var autoTestDone = false
     private var permissionPending = false
     private var permissionRefused = false
+    private var cameraPermissionAsked = false
     private var lastUsbList = ""
     private var summary = "No test finished yet."
     @Volatile private var previewBusy = false
@@ -140,6 +144,17 @@ class MainActivity : Activity() {
             )
             return
         }
+        // Without the camera permission Android refuses USB access to a camera at once,
+        // without even showing the question.
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            if (!cameraPermissionAsked) {
+                cameraPermissionAsked = true
+                log.log("Asking camera permission (needed before USB access to a camera)")
+                setStatus("Tap Allow so VAR USB Test may use the camera.")
+                requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_REQUEST)
+            }
+            return
+        }
         if (!usbManager.hasPermission(camera)) {
             if (!permissionRefused) askPermission(camera)
             return
@@ -148,6 +163,14 @@ class MainActivity : Activity() {
             autoTestDone = true
             startTest(camera)
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != CAMERA_REQUEST) return
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        log.log("Camera permission " + if (granted) "granted" else "refused")
+        if (!granted) setStatus("Camera permission was refused. Tap START TEST to ask again.")
     }
 
     private fun findCamera(): UsbDevice? = usbManager.deviceList.values.firstOrNull { device ->
@@ -178,6 +201,11 @@ class MainActivity : Activity() {
         if (camera == null) {
             Toast.makeText(this, "No camera with video found", Toast.LENGTH_SHORT).show()
             return
+        }
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            cameraPermissionAsked = false
+            autoTestDone = false
+            return // checkUsb asks within a second
         }
         if (!usbManager.hasPermission(camera)) {
             permissionRefused = false
