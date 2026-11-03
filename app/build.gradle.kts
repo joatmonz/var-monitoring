@@ -39,6 +39,10 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+    testOptions {
+        // DiagnosticLog writes through android.util.Log, which plain JVM tests stub out.
+        unitTests.isReturnDefaultValues = true
+    }
     buildFeatures {
         compose = true
     }
@@ -74,6 +78,8 @@ dependencies {
     // (libausbc/libuvc never delivers frames from this project's bulk-only capture card).
 
 
+
+    testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

@@ -1,6 +1,5 @@
 package com.example.varcamera.recording
 
-import android.system.Os
 import android.util.Log
 import com.example.varcamera.diag.DiagnosticLog
 import java.io.BufferedOutputStream
@@ -18,8 +17,11 @@ import java.util.concurrent.TimeUnit
  * has the card's full 1080p50 quality and saving costs no CPU. They go into
  * one-second chunk files so that old footage is dropped by deleting whole files.
  *
- * Saving a clip copies the chunks and leaves the buffer running: the match goes on
- * while the referee reviews, and the next REVIEW must again get a full window.
+ * Saving a clip moves the chunks into the clip folder and leaves the buffer running:
+ * the match goes on while the referee reviews, and the next REVIEW must again get a full
+ * window. Moving is instant, where copying 45 s of 1080p took 15-20 s on a nearly full
+ * phone. The buffer keeps pointing at the moved chunks (they never change again), and
+ * a REVIEW soon after copies only the chunks the previous clip already took.
  *
  * Chunk layout, repeated per frame: [timestamp ns: Long][length: Int][JPEG bytes].
  */
@@ -35,15 +37,14 @@ class FrameRingBuffer(
 
     private sealed class Item {
         class Frame(val timestampNanos: Long, val jpeg: ByteArray) : Item()
-        class Snapshot : Item() {
+        class Snapshot(val target: File) : Item() {
             val done = CountDownLatch(1)
-            @Volatile var chunks: List<File> = emptyList()
+            @Volatile var moved = 0
+            /** Chunks an earlier clip already holds: source in that clip, destination here. */
+            @Volatile var toCopy: List<Pair<File, File>> = emptyList()
         }
         object Reset : Item()
     }
-
-    /** While > 0 the writer keeps old chunks, so a copy in progress never loses its source. */
-    private val pins = java.util.concurrent.atomic.AtomicInteger()
 
     // Bounded so a slow disk drops frames instead of exhausting memory (~3s at 50fps).
     private val queue = LinkedBlockingQueue<Item>(150)
@@ -94,39 +95,47 @@ class FrameRingBuffer(
 
     /**
      * Puts the buffered window into [target] while recording carries on.
-     * Chunks are hard-linked, so a clip costs no copying and no extra storage; where the
-     * filesystem cannot link, they are copied (seconds for 45 s of 1080p, much longer on
-     * a nearly full phone). Blocks until done; call off the main thread.
-     * Returns null if nothing was buffered.
+     * Blocks until done (moving is instant; copying, only after a recent REVIEW, takes
+     * longer); call off the main thread. Returns null if nothing was buffered.
      */
     fun saveClip(target: File): File? {
-        pins.incrementAndGet()
-        try {
-            val snapshot = Item.Snapshot()
-            queue.put(snapshot)
-            if (!snapshot.done.await(5, TimeUnit.SECONDS) || snapshot.chunks.isEmpty()) return null
+        val started = System.nanoTime()
+        val snapshot = Item.Snapshot(target)
+        queue.put(snapshot)
+        if (!snapshot.done.await(5, TimeUnit.SECONDS)) return null
 
-            target.mkdirs()
-            val started = System.nanoTime()
-            var linked = 0
-            var copied = 0
-            snapshot.chunks.forEach { chunk ->
-                val destination = File(target, chunk.name)
-                // Closed chunks never change again, so the clip can share the same file.
-                val link = runCatching { Os.link(chunk.path, destination.path) }
-                if (link.isSuccess) {
-                    linked++
-                } else {
-                    runCatching { copy(chunk, destination); copied++ }
-                        .onFailure { Log.w(TAG, "could not copy ${chunk.name}: ${it.message}") }
-                }
-            }
-            DiagnosticLog.log("Rec", "clip ${target.name}: $linked chunks linked, $copied copied in " +
-                "${(System.nanoTime() - started) / 1_000_000} ms")
-            return if (linked + copied > 0) target else null.also { target.deleteRecursively() }
-        } finally {
-            pins.decrementAndGet()
+        var copied = 0
+        snapshot.toCopy.forEach { (source, destination) ->
+            runCatching { copy(source, destination); copied++ }
+                .onFailure { Log.w(TAG, "could not copy ${source.name}: ${it.message}") }
         }
+        DiagnosticLog.log("Rec", "clip ${target.name}: ${snapshot.moved} chunks moved, $copied copied in " +
+            "${(System.nanoTime() - started) / 1_000_000} ms")
+        return if (snapshot.moved + copied > 0) target else null.also { target.deleteRecursively() }
+    }
+
+    /** Chunks still in the live folder belong to the buffer; moved ones belong to a clip. */
+    private fun isLive(file: File) = file.parentFile == liveDir
+
+    /** Runs on the writer thread, so the chunk list never changes under it. */
+    private fun takeSnapshot(snapshot: Item.Snapshot) {
+        // Closing the open chunk makes its frames part of the clip.
+        closeChunk()
+        unsaved = false
+        val window = completed.toList().takeLast(keepSeconds + 1)
+        if (window.isEmpty()) return
+        snapshot.target.mkdirs()
+        val toCopy = mutableListOf<Pair<File, File>>()
+        window.forEach { chunk ->
+            val destination = File(snapshot.target, chunk.name)
+            if (isLive(chunk) && chunk.renameTo(destination)) {
+                completed[completed.indexOf(chunk)] = destination
+                snapshot.moved++
+            } else {
+                toCopy += chunk to destination
+            }
+        }
+        snapshot.toCopy = toCopy
     }
 
     private fun copy(source: File, destination: File) {
@@ -156,16 +165,13 @@ class FrameRingBuffer(
                         is Item.Frame -> write(item)
                         is Item.Reset -> {
                             closeChunk()
-                            completed.forEach { it.delete() }
+                            completed.filter(::isLive).forEach { it.delete() }
                             completed.clear()
                             completedCount = 0
                             unsaved = false
                         }
                         is Item.Snapshot -> {
-                            // Closing the open chunk makes its frames part of the clip.
-                            closeChunk()
-                            item.chunks = completed.toList().takeLast(keepSeconds + 1)
-                            unsaved = false
+                            takeSnapshot(item)
                             item.done.countDown()
                         }
                     }
@@ -209,8 +215,9 @@ class FrameRingBuffer(
         currentHasFrames = false
 
         // One chunk more than the window, so a clip always spans at least keepSeconds.
-        if (pins.get() == 0) {
-            while (completed.size > keepSeconds + 1) completed.removeFirst().delete()
+        while (completed.size > keepSeconds + 1) {
+            val old = completed.removeFirst()
+            if (isLive(old)) old.delete()
         }
         completedCount = completed.size.coerceAtMost(keepSeconds + 1)
     }
