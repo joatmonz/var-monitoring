@@ -44,7 +44,7 @@ class AudioRingBuffer(context: Context) {
         const val CHANNELS = 2
         const val BYTES_PER_FRAME = 2 * CHANNELS
 
-        private const val KEEP_SECONDS = 45
+        private const val KEEP_SECONDS = 50 // a little more than the 45 s video window
         private const val BLOCK_FRAMES = SAMPLE_RATE / 50
         private const val BLOCK_BYTES = BLOCK_FRAMES * BYTES_PER_FRAME
         private const val BLOCK_NANOS = 20_000_000L

@@ -88,7 +88,7 @@ class UVCCameraFragment : androidx.fragment.app.Fragment() {
     private val overlayTitle = mutableStateOf("No Capture Card")
     private val isPreparingClip = mutableStateOf(false)
 
-    // Recording: the last 30 seconds, saved as a clip when REVIEW is pressed.
+    // Recording: the last 45 seconds, saved as a clip when REVIEW is pressed.
     private lateinit var clipStore: ClipStore
     private lateinit var ringBuffer: FrameRingBuffer
     private lateinit var audioBuffer: AudioRingBuffer
@@ -410,7 +410,7 @@ class UVCCameraFragment : androidx.fragment.app.Fragment() {
     }
 
     /**
-     * Saves the last 30 seconds as a clip and opens the review screen on it; recording
+     * Saves the last 45 seconds as a clip and opens the review screen on it; recording
      * continues underneath. With nothing new since the last clip it just opens the
      * clips saved earlier.
      */

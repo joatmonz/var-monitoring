@@ -55,14 +55,6 @@ class UvcCamera {
          */
         private const val FROZEN_TIMEOUT_MS = 4000L
 
-        /**
-         * Bytes per bulk read. A payload can be much bigger (the Sony A7 IV sends a whole
-         * frame, 1.3 MB, as one payload) and the phone refuses reads that large, so
-         * payloads are rebuilt from several reads.
-         */
-        private const val READ_BYTES = 16384
-        private const val MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
-
         fun findDevice(usbManager: UsbManager): UsbDevice? =
             usbManager.deviceList.values.firstOrNull { device ->
                 (0 until device.interfaceCount).any { idx ->
@@ -159,7 +151,7 @@ class UvcCamera {
         committed = negotiated
         committedInterface = info.interfaceNumber
 
-        val payloadSize = le32(negotiated, 22).toInt().coerceIn(512, MAX_PAYLOAD_BYTES)
+        val payloadSize = le32(negotiated, 22).toInt().coerceIn(512, 16384)
         val maxFrameSize = le32(negotiated, 18).toInt().coerceAtLeast(64 * 1024)
         val actualFps = (INTERVAL_UNITS_PER_SECOND / le32(negotiated, 4).coerceAtLeast(1)).toInt()
 
@@ -200,9 +192,7 @@ class UvcCamera {
         maxFrameSize: Int,
         listener: Listener
     ) {
-        val chunk = ByteArray(READ_BYTES)
-        val payload = ByteArray(maxOf(payloadSize, READ_BYTES) + READ_BYTES)
-        var payloadLength = 0
+        val chunk = ByteArray(payloadSize)
         val assembly = ByteArrayOutputStream(maxFrameSize)
         var lastFrameAt = System.currentTimeMillis()
         var lastChangeAt = lastFrameAt
@@ -211,7 +201,7 @@ class UvcCamera {
         var hasSignal = true
 
         while (running) {
-            val got = conn.bulkTransfer(endpoint, chunk, chunk.size, 500)
+            val n = conn.bulkTransfer(endpoint, chunk, chunk.size, 500)
 
             val now = System.currentTimeMillis()
             val silent = now - lastFrameAt > SIGNAL_TIMEOUT_MS
@@ -230,29 +220,18 @@ class UvcCamera {
                 DiagnosticLog.log("Uvc", "recommit while silent: $result")
             }
 
-            if (got < 0) continue // timeout: the source is silent, keep waiting
-
-            // A payload ends with a short read (a zero-length one included) or at its
-            // negotiated maximum size; only its first read carries the UVC header.
-            if (got > 0) {
-                if (payloadLength + got > payload.size) payloadLength = 0 // lost sync: drop it
-                System.arraycopy(chunk, 0, payload, payloadLength, got)
-                payloadLength += got
-            }
-            if (got == chunk.size && payloadLength < payloadSize) continue
-            val n = payloadLength
-            payloadLength = 0
+            if (n < 0) continue // timeout: the source is silent, keep waiting
             if (n < 2) continue
 
-            val headerLength = payload[0].toInt() and 0xff
-            val headerInfo = payload[1].toInt() and 0xff
+            val headerLength = chunk[0].toInt() and 0xff
+            val headerInfo = chunk[1].toInt() and 0xff
 
             if (headerInfo and 0x40 != 0) { // error bit: drop the partial frame
                 assembly.reset()
                 continue
             }
             if (headerLength in 2..n) {
-                assembly.write(payload, headerLength, n - headerLength)
+                assembly.write(chunk, headerLength, n - headerLength)
             }
 
             if (headerInfo and 0x02 != 0) { // end of frame

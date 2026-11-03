@@ -1,6 +1,8 @@
 package com.example.varcamera.recording
 
+import android.system.Os
 import android.util.Log
+import com.example.varcamera.diag.DiagnosticLog
 import java.io.BufferedOutputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -23,7 +25,7 @@ import java.util.concurrent.TimeUnit
  */
 class FrameRingBuffer(
     private val liveDir: File,
-    private val keepSeconds: Int = 30
+    private val keepSeconds: Int = 45
 ) {
     companion object {
         private const val TAG = "FrameRingBuffer"
@@ -91,8 +93,10 @@ class FrameRingBuffer(
     @Volatile private var unsaved = false
 
     /**
-     * Copies the buffered window into [target] while recording carries on.
-     * Blocks until done (a few seconds for 30s of 1080p); call off the main thread.
+     * Puts the buffered window into [target] while recording carries on.
+     * Chunks are hard-linked, so a clip costs no copying and no extra storage; where the
+     * filesystem cannot link, they are copied (seconds for 45 s of 1080p, much longer on
+     * a nearly full phone). Blocks until done; call off the main thread.
      * Returns null if nothing was buffered.
      */
     fun saveClip(target: File): File? {
@@ -103,13 +107,23 @@ class FrameRingBuffer(
             if (!snapshot.done.await(5, TimeUnit.SECONDS) || snapshot.chunks.isEmpty()) return null
 
             target.mkdirs()
+            val started = System.nanoTime()
+            var linked = 0
             var copied = 0
             snapshot.chunks.forEach { chunk ->
-                runCatching { copy(chunk, File(target, chunk.name)); copied++ }
-                    .onFailure { Log.w(TAG, "could not copy ${chunk.name}: ${it.message}") }
+                val destination = File(target, chunk.name)
+                // Closed chunks never change again, so the clip can share the same file.
+                val link = runCatching { Os.link(chunk.path, destination.path) }
+                if (link.isSuccess) {
+                    linked++
+                } else {
+                    runCatching { copy(chunk, destination); copied++ }
+                        .onFailure { Log.w(TAG, "could not copy ${chunk.name}: ${it.message}") }
+                }
             }
-            Log.d(TAG, "saved $copied chunks into ${target.name}")
-            return if (copied > 0) target else null.also { target.deleteRecursively() }
+            DiagnosticLog.log("Rec", "clip ${target.name}: $linked chunks linked, $copied copied in " +
+                "${(System.nanoTime() - started) / 1_000_000} ms")
+            return if (linked + copied > 0) target else null.also { target.deleteRecursively() }
         } finally {
             pins.decrementAndGet()
         }
